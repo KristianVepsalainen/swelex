@@ -7,6 +7,8 @@ Description: Provides functions to search and retrieve the consolidated
     text of Swedish statutes (Svensk författningssamling, SFS) via the
     Riksdag's open data API. Part of the lexverse ecosystem of packages
     for accessing legal and regulatory data.
+Depends: 
+    R (>= 4.1.0)    
 License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
