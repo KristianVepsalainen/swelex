@@ -10,51 +10,19 @@
 swe_get_doc <- function(sfs_nr) {
   dok_id <- sfs_nr_to_dok_id(sfs_nr)
   
-  resp <- tryCatch(
-    httr2::request("https://data.riksdagen.se") |>
-      httr2::req_url_path_append("dokumentstatus", paste0(dok_id, ".json")) |>
-      httr2::req_user_agent("swelex R package (https://github.com/KristianVepsalainen/swelex)") |>
-      httr2::req_retry(max_tries = 3, backoff = ~ 2) |>
-      httr2::req_perform(),
-    
-    httr2_http_404 = function(cnd) {
-      cli::cli_abort(
-        "SFS {sfs_nr} was not found in Riksdagen's open data (HTTP 404).",
-        class = "swelex_not_found"
-      )
-    },
-    httr2_http = function(cnd) {
-      cli::cli_abort(
-        c(
-          "Riksdagen's API returned an error for SFS {sfs_nr}.",
-          "i" = "Check {.url https://storning.riksdagen.se/} for service disruptions."
-        ),
-        class = "swelex_api_error",
-        parent = cnd
-      )
-    },
-    httr2_failure = function(cnd) {
-      cli::cli_abort(
-        c(
-          "Could not reach Riksdagen's API for SFS {sfs_nr}.",
-          "i" = "The service may be down. Check {.url https://storning.riksdagen.se/}."
-        ),
-        class = "swelex_connection_error",
-        parent = cnd
-      )
-    }
-  )
+  req <- httr2::request("https://data.riksdagen.se") |>
+    httr2::req_url_path_append("dokumentstatus", paste0(dok_id, ".json")) |>
+    httr2::req_user_agent("swelex R package (https://github.com/KristianVepsalainen/swelex)") |>
+    httr2::req_retry(max_tries = 3, backoff = ~ 2)
+  
+  resp <- perform_riksdagen_request(req, paste("SFS", sfs_nr))
   
   parsed <- httr2::resp_body_json(resp)
   doc <- parsed$dokumentstatus$dokument
   uppgifter <- parse_dokumentuppgift(parsed$dokumentstatus$dokumentuppgift$uppgift)
   
-  upphavd_datum <- if (!is.null(uppgifter$upphavd)) {
-    as.Date(uppgifter$upphavd)
-  } else {
-    as.Date(NA)
-  }
-  upphavd_av <- if (!is.null(uppgifter$upphnr)) uppgifter$upphnr else NA_character_
+  upphavd_datum <- if (!is.null(uppgifter$upphavd)) as.Date(uppgifter$upphavd) else as.Date(NA)
+  upphavd_av    <- if (!is.null(uppgifter$upphnr)) uppgifter$upphnr else NA_character_
   
   tibble::tibble(
     sfs_nr      = doc$beteckning,

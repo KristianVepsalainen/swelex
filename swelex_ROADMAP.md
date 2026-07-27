@@ -112,19 +112,27 @@ status here as we go rather than in a separate task list.)*
   written defensively but still untested against a real 5xx/outage
   response (low priority — revisit opportunistically if Riksdagen has
   another outage).
-- [x] `testthat` (edition 3) + `httptest2` mocks. `test-swe_get_doc.R`
-  complete: 4 test blocks / 11 assertions, all passing
-  (`FAIL 0 | WARN 0 | SKIP 0 | PASS 11`). Fixtures captured via
-  `with_mock_dir()` (not `capture_requests(path=...)` — that argument was
-  removed in current httptest2; `with_mock_dir()` is the correct modern
-  API and doubles as the record/replay switch) and live in
-  `tests/testthat/fixtures/swe_get_doc_{success,404,repealed}/`:
-  - `sfs-1974-152` (success, heavily amended constitution)
-  - `sfs-9999-999` (404 — not found, saved as `.json.R` since error
-    responses have no body to replay)
-  - `sfs-1975-1385` (repealed statute — confirmed `dokumentuppgift`
-    exposes `upphavd` (date) and `upphnr` (repealing SFS number) as
-    structured fields; `$dokument$status` is always empty and not useful)
+- [x] `testthat` (edition 3), `skip_on_cran()` + `skip_if_offline()` pattern
+  — **not** httptest2. Course-corrected 2026-07-24: initially built
+  httptest2 mocks, but hit two friction points (fixture path length >100
+  bytes breaking the CRAN tarball check; a botched `git mv` silently
+  leaving stale fixture dirs) that outweighed the benefit for this simple
+  a package. Switched to the same live-request-but-skippable pattern
+  finlex already uses — simpler, consistent across lexverse, and CRAN
+  machines skip these tests entirely via `skip_on_cran()` regardless.
+  `test-swe_get_doc.R`: 4 test blocks covering success / 404 /
+  repealed-statute / input-validation.
+  - **`httr2_failure` path confirmed live**, not just written defensively:
+    a genuine Riksdagen outage (`storning.riksdagen.se` showing "Vi
+    arbetar för att lösa problemet", observed twice on 2026-07-24) caused
+    real `Recv failure: Connection reset by peer` errors, and
+    `swe_get_doc()` correctly surfaced the structured
+    `swelex_connection_error` with a pointer to the status page. Note:
+    `skip_if_offline()` only checks general connectivity, not the target
+    service, so it does not skip when only Riksdagen itself is down —
+    tests correctly attempt and correctly fail in that case.
+  - `httr2_http` (generic non-404 HTTP error) path still not exercised
+    live — low priority, revisit opportunistically.
 - [ ] `skip_on_cran()` + `skip_if_offline()` on all network tests
 - [ ] Pre-computed vignette (`.Rmd.orig` → `.Rmd`), no live API calls at
   CRAN check time
@@ -132,6 +140,19 @@ status here as we go rather than in a separate task list.)*
   (Linux/Windows/macOS arm64)
 - [ ] `cli`-based error/condition classes (`swelex_not_found`, etc.) for
   testable, structured errors
+- [x] Pin `Depends: R (>= 4.1.0)` explicitly in DESCRIPTION rather than
+  relying on automatic inference from `|>` usage (CRAN check surfaced this
+  as an automatic-detection WARNING on first CI run — better to state it)
+- [x] `usethis::use_build_ignore("swelex_ROADMAP.md")` — CRAN check flags
+  non-standard top-level files; roadmap stays in git, excluded from the
+  build tarball
+- [x] First CI run went green 2026-07-24 (after two rounds of fixes: R
+  dependency pin, ROADMAP build-ignore, and the httptest2 → skip_on_cran/
+  skip_if_offline switch). One transient, unrelated CI infra failure
+  encountered along the way (`setup-r-dependencies`'s `pak` install failed
+  on the Windows runner with "there is no package called 'pak'") — this is
+  a known intermittent issue in `r-lib/actions`, not a swelex problem;
+  resolved by simply re-running the failed job.
 - [ ] README + pkgdown site
 - [ ] Swedish diacritics correctness pass before release (å/ä/ö) — same
   discipline as the Finnish diacritics rule for finlex
@@ -157,7 +178,8 @@ status here as we go rather than in a separate task list.)*
 
 ---
 
-*Last updated: 2026-07-24. `swe_get_doc()` complete with passing test suite
-(11/11); repealed-statute handling resolved; package skeleton in place.
-Next: `swe_search()`. Update this file as decisions are made — don't let a
-separate task list drift out of sync with it.*
+*Last updated: 2026-07-24. First CI run green: package skeleton +
+swe_get_doc() fully committed, pushed, and verified on a clean external
+runner. Milestone reached — ready to move to swe_search(). Update this
+file as decisions are made — don't let a separate task list drift out of
+sync with it.*
