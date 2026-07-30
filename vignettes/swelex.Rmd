@@ -1,0 +1,210 @@
+---
+title: "Introduction to swelex"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Introduction to swelex}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+
+
+
+``` r
+library(swelex)
+```
+
+## Overview
+
+swelex provides access to the Swedish Code of Statutes (Svensk
+författningssamling, SFS) via the Riksdag's open data API. It returns the
+consolidated, up-to-date text of statutes — not the as-originally-enacted
+version — matching how Swedish legal practitioners actually use SFS
+references.
+
+## Fetching a statute
+
+Every statute has an SFS number in the format `"YYYY:NNN"`. Use
+`swe_get_doc()` to retrieve the full document:
+
+
+``` r
+rf <- swe_get_doc("1974:152")
+#> Error in `perform_riksdagen_request()` at swelex/R/swe_get_doc.R:18:3:
+#> ! Could not reach Riksdagen's API for SFS 1974:152.
+#> ℹ The service may be down. Check <https://storning.riksdagen.se/>.
+#> Caused by error in `httr2::req_perform()`:
+#> ! Failed to perform HTTP request.
+#> Caused by error in `curl::curl_fetch_memory()`:
+#> ! Failure when receiving data from the peer [data.riksdagen.se]:
+#> Recv failure: Vastapää sulki yhteyden
+rf
+#> function (n, df1, df2, ncp) 
+#> {
+#>     if (missing(ncp)) 
+#>         .Call(C_rf, n, df1, df2)
+#>     else (rchisq(n, df1, ncp = ncp)/df1)/(rchisq(n, df2)/df2)
+#> }
+#> <bytecode: 0x5558670f0148>
+#> <environment: namespace:stats>
+```
+
+The result includes both metadata and the consolidated text. Note
+`andrad_tom`, which shows the most recent amendment reflected in the text.
+
+## Searching for statutes
+
+If you don't already know the SFS number, `swe_search()` performs a
+relevance-ranked free-text search:
+
+
+``` r
+result <- swe_search(query = "körkort", max_results = 5)
+#> Error in `perform_riksdagen_request()` at swelex/R/swe_search.R:46:5:
+#> ! Could not reach Riksdagen's API for SFS search.
+#> ℹ The service may be down. Check <https://storning.riksdagen.se/>.
+#> Caused by error in `httr2::req_perform()`:
+#> ! Failed to perform HTTP request.
+#> Caused by error in `curl::curl_fetch_memory()`:
+#> ! Failure when receiving data from the peer [data.riksdagen.se]:
+#> Recv failure: Vastapää sulki yhteyden
+result[, c("sfs_nr", "titel", "score")]
+#> Error:
+#> ! object 'result' not found
+```
+
+You can also filter by date range or issuing department:
+
+
+``` r
+recent <- swe_search(
+  from_date = "2026-01-01",
+  to_date   = "2026-01-31"
+)
+#> Error in `perform_riksdagen_request()` at swelex/R/swe_search.R:46:5:
+#> ! Could not reach Riksdagen's API for SFS search.
+#> ℹ The service may be down. Check <https://storning.riksdagen.se/>.
+#> Caused by error in `httr2::req_perform()`:
+#> ! Failed to perform HTTP request.
+#> Caused by error in `curl::curl_fetch_memory()`:
+#> ! Failure when receiving data from the peer [data.riksdagen.se]:
+#> Recv failure: Vastapää sulki yhteyden
+recent[, c("sfs_nr", "titel", "datum")]
+#> Error:
+#> ! object 'recent' not found
+```
+
+
+``` r
+justice_dept <- swe_search(org = "Justitiedepartementet", max_results = 5)
+#> Error in `perform_riksdagen_request()` at swelex/R/swe_search.R:46:5:
+#> ! Could not reach Riksdagen's API for SFS search.
+#> ℹ The service may be down. Check <https://storning.riksdagen.se/>.
+#> Caused by error in `httr2::req_perform()`:
+#> ! Failed to perform HTTP request.
+#> Caused by error in `curl::curl_fetch_memory()`:
+#> ! Failure when receiving data from the peer [data.riksdagen.se]:
+#> Recv failure: Vastapää sulki yhteyden
+justice_dept[, c("sfs_nr", "titel")]
+#> Error:
+#> ! object 'justice_dept' not found
+```
+
+A search with no matches returns a zero-row tibble rather than an error:
+
+
+``` r
+swe_search(query = "xyzzyplugh123nonexistent")
+#> Error in `perform_riksdagen_request()` at swelex/R/swe_search.R:46:5:
+#> ! Could not reach Riksdagen's API for SFS search.
+#> ℹ The service may be down. Check <https://storning.riksdagen.se/>.
+#> Caused by error in `httr2::req_perform()`:
+#> ! Failed to perform HTTP request.
+#> Caused by error in `curl::curl_fetch_memory()`:
+#> ! Failure when receiving data from the peer [data.riksdagen.se]:
+#> Recv failure: Vastapää sulki yhteyden
+```
+
+## Thin wrappers
+
+If you only need the text or only the metadata, two convenience wrappers
+avoid handling the full tibble:
+
+
+``` r
+swe_get_text("1974:152") |> substr(1, 200)
+#> Error in `perform_riksdagen_request()` at swelex/R/swe_get_doc.R:18:3:
+#> ! Could not reach Riksdagen's API for SFS 1974:152.
+#> ℹ The service may be down. Check <https://storning.riksdagen.se/>.
+#> Caused by error in `httr2::req_perform()`:
+#> ! Failed to perform HTTP request.
+#> Caused by error in `curl::curl_fetch_memory()`:
+#> ! Failure when receiving data from the peer [data.riksdagen.se]:
+#> Recv failure: Vastapää sulki yhteyden
+```
+
+
+``` r
+swe_get_metadata("1974:152")
+#> Error in `perform_riksdagen_request()` at swelex/R/swe_get_doc.R:18:3:
+#> ! Could not reach Riksdagen's API for SFS 1974:152.
+#> ℹ The service may be down. Check <https://storning.riksdagen.se/>.
+#> Caused by error in `httr2::req_perform()`:
+#> ! Failed to perform HTTP request.
+#> Caused by error in `curl::curl_fetch_memory()`:
+#> ! Failure when receiving data from the peer [data.riksdagen.se]:
+#> Recv failure: Vastapää sulki yhteyden
+```
+
+## Repealed statutes
+
+Statutes that have been repealed are flagged, along with the repeal date
+and the repealing SFS number:
+
+
+``` r
+swe_get_doc("1975:1385")[, c("sfs_nr", "titel", "is_repealed", "upphavd", "upphavd_av")]
+#> Error in `perform_riksdagen_request()` at swelex/R/swe_get_doc.R:18:3:
+#> ! Could not reach Riksdagen's API for SFS 1975:1385.
+#> ℹ The service may be down. Check <https://storning.riksdagen.se/>.
+#> Caused by error in `httr2::req_perform()`:
+#> ! Failed to perform HTTP request.
+#> Caused by error in `curl::curl_fetch_memory()`:
+#> ! Failure when receiving data from the peer [data.riksdagen.se]:
+#> Recv failure: Vastapää sulki yhteyden
+```
+
+A convenience wrapper is also available:
+
+
+``` r
+swe_is_repealed("1975:1385")
+#> Error in `perform_riksdagen_request()` at swelex/R/swe_get_doc.R:18:3:
+#> ! Could not reach Riksdagen's API for SFS 1975:1385.
+#> ℹ The service may be down. Check <https://storning.riksdagen.se/>.
+#> Caused by error in `httr2::req_perform()`:
+#> ! Failed to perform HTTP request.
+#> Caused by error in `curl::curl_fetch_memory()`:
+#> ! Failure when receiving data from the peer [data.riksdagen.se]:
+#> Recv failure: Vastapää sulki yhteyden
+swe_is_repealed("1974:152")
+#> Error in `perform_riksdagen_request()` at swelex/R/swe_get_doc.R:18:3:
+#> ! Could not reach Riksdagen's API for SFS 1974:152.
+#> ℹ The service may be down. Check <https://storning.riksdagen.se/>.
+#> Caused by error in `httr2::req_perform()`:
+#> ! Failed to perform HTTP request.
+#> Caused by error in `curl::curl_fetch_memory()`:
+#> ! Failure when receiving data from the peer [data.riksdagen.se]:
+#> Recv failure: Vastapää sulki yhteyden
+```
+
+## Known limitations
+
+- **No amendment history.** The API does not expose a structured list of
+  every SFS number that has amended a given statute — only the most
+  recent one (`andrad_tom`). Retrieving full amendment history would
+  require scraping Regeringskansliet's rättsdatabaser, which swelex
+  currently does not do.
+- **Consolidated text only.** swelex returns the text as it stands today
+  (or as of the date `dokumentstatus` was last indexed), not
+  point-in-time historical versions.

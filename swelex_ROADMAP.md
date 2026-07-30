@@ -124,12 +124,12 @@ later — mirrors `flx_` in finlex).
 
 | Function | Status | Purpose |
 |---|---|---|
-| `swe_get_doc(sfs_nr)` | 🟢 done (v1) | Single document, full metadata + consolidated text. 404, generic-HTTP-error and connection-failure handling implemented and passing in `testthat` with `httptest2` mocks (11/11 tests). Repealed-statute detection (`upphavd`, `upphavd_av`, `is_repealed`) implemented via `dokumentuppgift$uppgift` parsing. |
+| `swe_get_doc(sfs_nr)` | 🟢 done (v1) | Single document, full metadata + consolidated text. 404, generic-HTTP-error and connection-failure handling implemented and passing in `testthat` via `skip_on_cran()`/`skip_if_offline()` (11/11 tests). Repealed-statute detection (`upphavd`, `upphavd_av`, `is_repealed`) implemented via `dokumentuppgift$uppgift` parsing. |
 | `swe_search(...)` | 🟢 done (v1) | Wraps `dokumentlista`: free text, date range (`from_date`/`to_date`), department (`org`), session year (`rm`), pagination. Defaults to `sort=rel&sortorder=desc` — confirmed empirically necessary. Filters out non-`sfst` archival documents. Returns empty tibble (not an error) on no matches. 5/5 tests passing. |
 | `swe_get_text(sfs_nr)` | 🟢 done (v1) | Thin wrapper returning only the text string. 3/3 tests passing. |
 | `swe_get_metadata(sfs_nr)` | 🟢 done (v1) | Thin wrapper returning metadata tibble minus `text`. **Not actually cheaper** — same `dokumentstatus` call under the hood; a real bandwidth-saving version would need a different route (see optimisation note below). 3/3 tests passing. |
 | `swe_list_changes(sfs_nr)` | ⛔ deferred indefinitely | **Not feasible without scraping** — confirmed 2026-07-30 that Riksdagen's API exposes no structured amendment history, only a flattened "most recent amendment" string. Would require scraping `rkrattsbaser.gov.se`'s SFSR register, which is explicitly out of scope per the no-scraping decision. Revisit only if that decision changes. |
-| `swe_is_repealed(sfs_nr)` | 🟢 trivial, ready to add | No longer blocked — `is_repealed` is already computed in `swe_get_doc()`. A one-line convenience wrapper (`swe_get_doc(sfs_nr)$is_repealed`), same pattern as `swe_get_text()`. |
+| `swe_is_repealed(sfs_nr)` | 🟢 done (v1) | Thin wrapper: `swe_get_doc(sfs_nr)$is_repealed`. 2/2 tests passing. |
 | `sfs_nr_to_dok_id()` / `dok_id_to_sfs_nr()` | 🟢 first one done | Internal helpers, likely exported since users may want to construct URLs themselves. |
 
 *(This table is intentionally the living center of the roadmap — update
@@ -170,9 +170,22 @@ status here as we go rather than in a separate task list.)*
     tests correctly attempt and correctly fail in that case.
   - `httr2_http` (generic non-404 HTTP error) path still not exercised
     live — low priority, revisit opportunistically.
-- [ ] `skip_on_cran()` + `skip_if_offline()` on all network tests
-- [ ] Pre-computed vignette (`.Rmd.orig` → `.Rmd`), no live API calls at
-  CRAN check time
+- [x] `skip_on_cran()` + `skip_if_offline()` applied on all network tests
+  across all four test files (see above)
+- [x] Pre-computed vignette (`.Rmd.orig` → `.Rmd`), no live API calls at
+  CRAN check time. Built 2026-07-30: covers `swe_get_doc()`, `swe_search()`
+  (free text/date/department filters), thin wrappers, repealed statutes,
+  and documents known limitations (no scraping, no amendment history).
+  Passed `devtools::check()`'s vignette-specific checks cleanly (rebuild,
+  package vignettes, unstated dependencies).
+- [ ] **Reliability note**: Riksdagen's API has now had **three separate
+  outages** during this project (2026-07-24 ×2, 2026-07-30), each showing
+  the same `storning.riksdagen.se` message and `Connection reset by peer`
+  errors. This is a real, recurring characteristic of the data source, not
+  a one-off. Doesn't block v1.0 (CRAN's own check skips these tests via
+  `skip_on_cran()`), but worth stating plainly in the README/vignette as a
+  known limitation, and something to keep an eye on for CI reliability
+  going forward.
 - [ ] `devtools::check(cran = TRUE)`, win-builder, R-hub v2
   (Linux/Windows/macOS arm64)
 - [ ] `cli`-based error/condition classes (`swelex_not_found`, etc.) for
@@ -201,21 +214,22 @@ status here as we go rather than in a separate task list.)*
 1. ~~API reconnaissance~~ ✅
 2. ~~`swe_get_doc()` + package skeleton~~ ✅ committed, CI green
 3. ~~`swe_search()`~~ ✅ implemented, hardened, 21/21 tests, CI green
-4. ~~Thin wrappers (`swe_get_text`, `swe_get_metadata`)~~ ✅ 27/27 tests,
-   `devtools::check()`: 0/0/0
-5. ~~Amendment-history question~~ ✅ resolved: not feasible without
-   scraping, `swe_list_changes()` deferred indefinitely
-6. **Next up:** add trivial `swe_is_repealed()` wrapper, then move to
-   pre-computed vignette
-7. CRAN pre-flight checklist (Section 3) end to end
-8. Submit — **once**, aiming for the ~6-month cadence, product-complete
+4. ~~Thin wrappers (`swe_get_text`, `swe_get_metadata`, `swe_is_repealed`)~~
+   ✅ 29/29 tests, `devtools::check()`: 0/0/0. Full v1.0 function
+   inventory complete (`swe_list_changes()` deferred indefinitely).
+5. ~~Pre-computed vignette~~ ✅ built and verified 2026-07-30
+6. **Next up:** CRAN pre-flight checklist (Section 3) end to end — most
+   items already done opportunistically along the way; remaining:
+   `urlchecker::url_check()`, `usethis::use_spell_check()`, win-builder/
+   R-hub v2, `cran-comments.md`
+7. Submit — **once**, aiming for the ~6-month cadence, product-complete
 
 ---
 
-*Last updated: 2026-07-30. Amendment-history question resolved (not
-feasible without scraping — swe_list_changes() deferred indefinitely).
-Function inventory for v1.0 is now essentially settled: swe_get_doc,
-swe_search, swe_get_text, swe_get_metadata done; swe_is_repealed trivial
-to add. Next: add that wrapper, then move to the pre-computed vignette
-and CRAN pre-flight checklist. Update this file as decisions are made —
-don't let a separate task list drift out of sync with it.*
+*Last updated: 2026-07-30. Pre-computed vignette built and verified —
+vignette-specific CRAN checks all passed cleanly. Third Riksdagen outage
+of this project hit live tests during the same check() run, unrelated to
+the vignette itself; noted as a recurring reliability characteristic of
+the data source. Function inventory + vignette both complete. Next: CRAN
+pre-flight checklist. Update this file as decisions are made — don't let
+a separate task list drift out of sync with it.*

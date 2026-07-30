@@ -3,3 +3,7 @@
 ^\.github$
 ^LICENSE\.md$
 ^swelex_ROADMAP\.md$
+^vignettes/swelex\.Rmd\.orig$
+^vignettes/precompile\.R$
+^doc$
+^Meta$
