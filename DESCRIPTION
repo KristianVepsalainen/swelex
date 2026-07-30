@@ -1,6 +1,6 @@
 Package: swelex
 Title: Access the Swedish Code of Statutes via Riksdagen's Open Data
-Version: 0.0.0.9000
+Version: 0.1.0
 Authors@R: 
     person("Kristian", "Vepsäläinen", , "kristian.vepsalainen@proton.me", role = c("aut", "cre"))
 Description: Provides functions to search and retrieve the consolidated
