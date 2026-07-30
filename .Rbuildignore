@@ -7,3 +7,4 @@
 ^vignettes/precompile\.R$
 ^doc$
 ^Meta$
+^cran-comments\.md$
