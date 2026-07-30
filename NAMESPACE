@@ -3,4 +3,5 @@
 export(swe_get_doc)
 export(swe_get_metadata)
 export(swe_get_text)
+export(swe_is_repealed)
 export(swe_search)

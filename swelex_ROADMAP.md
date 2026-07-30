@@ -59,24 +59,45 @@ because the next realistic update window is ~6 months out. **No thin MVP.**
   (e.g. 1974:152 scored 36451 vs. ~1000-3000 for the next most relevant
   results). `swe_search()` now applies this sort by default — not optional,
   since without it the function is close to useless for its main purpose.
-- [ ] **New edge case found 2026-07-26**: one result for query
-  "regeringsform" had an empty `sfs_nr` (`beteckning`) and a truncated
-  `titel` ("för Riksbankens styrelse och förvaltning") — likely an older or
-  non-standard document (possibly a Riksbank charter/ordinance) that
-  doesn't follow the normal SFS numbering convention. Not yet handled
-  defensively; a downstream `swe_get_doc(sfs_nr = "")` call would fail.
-  Low priority for v1 but should be revisited — either filter such rows
-  out of `swe_search()` results, or document the caveat clearly.
+- [x] ~~**Edge case found 2026-07-26**: one result for query "regeringsform"
+  had an empty `sfs_nr`~~ **Resolved 2026-07-30**: traced to `subtyp:
+  "regl-riksb"` — an 1898 Riksbank charter (`Reglemente för Riksbankens
+  styrelse och förvaltning`) from a KB (Kungliga biblioteket) OCR
+  digitisation project (`kalla: "digitalisering"`, `status: "ocr"`).
+  General pattern: `doktyp=sfs` includes archival/non-consolidated
+  documents alongside modern `sfst` statutes. Fix: `swe_search()` now
+  filters to `subtyp == "sfst"` only. **Second bug found while fixing
+  this**: the pagination stop condition originally compared filtered
+  result count against page size, causing `max_results=10` to silently
+  return only 9 rows whenever a page contained an archival document.
+  Fixed by comparing the raw (pre-filter) page length instead. Both fixes
+  verified: 10/10 rows returned, all with non-empty `sfs_nr`.
+- [ ] **Possible future optimisation**: `swe_get_metadata()` currently makes
+  the same full `dokumentstatus` call as `swe_get_doc()` and just drops
+  `text` — no real bandwidth saving. A genuinely lighter metadata-only path
+  might exist via `dokumentlista` with `nr=`+`rm=` params (untested; `bet=`
+  was confirmed not to work for `doktyp=sfs`, but `nr`+`rm` together were
+  never tried). Worth investigating if bulk metadata harvesting becomes a
+  real use case (e.g. for a future `lexnet` citation network).
 - [ ] Does `dokumentlista` free-text search (`sok=`) reliably find a statute
   by SFS number, or only by title keywords? (`bet=` parameter confirmed
   **not** to work for `doktyp=sfs`.)
 - [ ] Pagination behaviour at scale — `@sidor: 3847` pages for the full SFS
   corpus at `sz=3`; need to confirm sane `sz` upper bound and whether bulk
   retrieval is anywhere near practical/allowed.
-- [ ] Does the API expose amendment history as structured data (e.g. a
-  changelog of every SFS number that touched a given statute), or only the
-  flattened "t.o.m. SFS X" string? This matters a lot for any future
-  `lexnet`-style citation network work.
+- [x] ~~Does the API expose amendment history as structured data~~
+  **Resolved 2026-07-30, answer: no.** `dokumentuppgift$uppgift` for a
+  heavily-amended statute (SFS 1974:152, 50+ years of amendments) exposes
+  only six fields (`artal`, `utfardad`, `text2`, `andrattillochmed`,
+  `omtryck`, `utdrag`) — no list of individual amending SFS numbers, only
+  the flattened "t.o.m. SFS X" string naming the *most recent* amendment.
+  Free-text search for the SFS number itself (`sok="1974:152"`) returned
+  only the statute's own document, not any of the amending acts. **No
+  structured amendment history is retrievable via this API without
+  scraping** `rkrattsbaser.gov.se`'s change register (SFSR) — which is out
+  of scope per the no-scraping decision. `swe_list_changes()` is therefore
+  **deferred indefinitely**, not just unscoped for v1.0 — move to Section
+  2 status accordingly.
 - [ ] Confirm actual behaviour on repeated rapid requests (possible informal
   rate limiting) once service is back up.
 
@@ -104,11 +125,11 @@ later — mirrors `flx_` in finlex).
 | Function | Status | Purpose |
 |---|---|---|
 | `swe_get_doc(sfs_nr)` | 🟢 done (v1) | Single document, full metadata + consolidated text. 404, generic-HTTP-error and connection-failure handling implemented and passing in `testthat` with `httptest2` mocks (11/11 tests). Repealed-statute detection (`upphavd`, `upphavd_av`, `is_repealed`) implemented via `dokumentuppgift$uppgift` parsing. |
-| `swe_search(...)` | 🟢 done (v1) | Wraps `dokumentlista`: free text, date range (`from_date`/`to_date`), department (`org`), session year (`rm`), pagination. Defaults to `sort=rel&sortorder=desc` — confirmed empirically necessary (default order is not relevance-based, making free-text search unusable otherwise). Returns empty tibble (not an error) on no matches. 4/4 tests passing. |
-| `swe_get_text(sfs_nr)` | ⬜ not started | Thin wrapper returning only the text string (mirrors `flx_get_text()`). |
-| `swe_get_metadata(sfs_nr)` | ⬜ not started | Thin wrapper returning only metadata tibble, no full text (cheaper calls for bulk metadata work). |
-| `swe_list_changes(sfs_nr)` | ⬜ needs API research | Amendment history for a statute, if the API exposes it structurally (see open question above). |
-| `swe_is_repealed(sfs_nr)` | ⬜ blocked | Depends on resolving the repealed-statute field question. |
+| `swe_search(...)` | 🟢 done (v1) | Wraps `dokumentlista`: free text, date range (`from_date`/`to_date`), department (`org`), session year (`rm`), pagination. Defaults to `sort=rel&sortorder=desc` — confirmed empirically necessary. Filters out non-`sfst` archival documents. Returns empty tibble (not an error) on no matches. 5/5 tests passing. |
+| `swe_get_text(sfs_nr)` | 🟢 done (v1) | Thin wrapper returning only the text string. 3/3 tests passing. |
+| `swe_get_metadata(sfs_nr)` | 🟢 done (v1) | Thin wrapper returning metadata tibble minus `text`. **Not actually cheaper** — same `dokumentstatus` call under the hood; a real bandwidth-saving version would need a different route (see optimisation note below). 3/3 tests passing. |
+| `swe_list_changes(sfs_nr)` | ⛔ deferred indefinitely | **Not feasible without scraping** — confirmed 2026-07-30 that Riksdagen's API exposes no structured amendment history, only a flattened "most recent amendment" string. Would require scraping `rkrattsbaser.gov.se`'s SFSR register, which is explicitly out of scope per the no-scraping decision. Revisit only if that decision changes. |
+| `swe_is_repealed(sfs_nr)` | 🟢 trivial, ready to add | No longer blocked — `is_repealed` is already computed in `swe_get_doc()`. A one-line convenience wrapper (`swe_get_doc(sfs_nr)$is_repealed`), same pattern as `swe_get_text()`. |
 | `sfs_nr_to_dok_id()` / `dok_id_to_sfs_nr()` | 🟢 first one done | Internal helpers, likely exported since users may want to construct URLs themselves. |
 
 *(This table is intentionally the living center of the roadmap — update
@@ -179,21 +200,22 @@ status here as we go rather than in a separate task list.)*
 
 1. ~~API reconnaissance~~ ✅
 2. ~~`swe_get_doc()` + package skeleton~~ ✅ committed, CI green
-3. ~~`swe_search()`~~ ✅ implemented with relevance-sort fix, tested,
-   committed, `devtools::check()`: 0/0/0
-4. **Next up:** thin wrappers (`swe_get_text`, `swe_get_metadata`); also
-   revisit the empty-`sfs_nr` edge case found in `swe_search()` results
-5. Resolve amendment-history question → decide whether `swe_list_changes()`
-   is in scope for v1.0 or deferred
-6. Pre-computed vignette
+3. ~~`swe_search()`~~ ✅ implemented, hardened, 21/21 tests, CI green
+4. ~~Thin wrappers (`swe_get_text`, `swe_get_metadata`)~~ ✅ 27/27 tests,
+   `devtools::check()`: 0/0/0
+5. ~~Amendment-history question~~ ✅ resolved: not feasible without
+   scraping, `swe_list_changes()` deferred indefinitely
+6. **Next up:** add trivial `swe_is_repealed()` wrapper, then move to
+   pre-computed vignette
 7. CRAN pre-flight checklist (Section 3) end to end
 8. Submit — **once**, aiming for the ~6-month cadence, product-complete
 
 ---
 
-*Last updated: 2026-07-26. `swe_search()` complete with critical
-relevance-sort fix discovered empirically; shared error-handling helper
-extracted to R/utils.R. Package check clean (0/0/0), ready to commit.
-Next: thin wrapper functions + empty-sfs_nr edge case. Update this file as
-decisions are made — don't let a separate task list drift out of sync
-with it.*
+*Last updated: 2026-07-30. Amendment-history question resolved (not
+feasible without scraping — swe_list_changes() deferred indefinitely).
+Function inventory for v1.0 is now essentially settled: swe_get_doc,
+swe_search, swe_get_text, swe_get_metadata done; swe_is_repealed trivial
+to add. Next: add that wrapper, then move to the pre-computed vignette
+and CRAN pre-flight checklist. Update this file as decisions are made —
+don't let a separate task list drift out of sync with it.*
