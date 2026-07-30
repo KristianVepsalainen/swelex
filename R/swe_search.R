@@ -45,14 +45,21 @@ swe_search <- function(query = NULL, from_date = NULL, to_date = NULL,
     
     resp <- perform_riksdagen_request(req, "SFS search")
     parsed <- httr2::resp_body_json(resp)
-    dokument <- parsed$dokumentlista$dokument
+    dokument_raw <- parsed$dokumentlista$dokument
     
-    if (length(dokument) == 0) break
+    if (length(dokument_raw) == 0) break
+    
+    # Exclude archival/OCR-scanned documents (subtyp != "sfst") — these
+    # lack beteckning, consolidated text, and the dokumentstatus structure
+    # the rest of swelex relies on. See ROADMAP.md for the "Riksbankens
+    # styrelse" 1898 case that surfaced this.
+    is_modern_sfst <- vapply(dokument_raw, function(x) identical(x$subtyp, "sfst"), logical(1))
+    dokument <- dokument_raw[is_modern_sfst]
     
     results <- c(results, dokument)
-    total_hits <- as.integer(parsed$dokumentlista$`@traffar`)
     
-    if (length(results) >= max_results || length(results) >= total_hits) break
+    if (length(results) >= max_results) break
+    if (length(dokument_raw) < page_size) break  # raw page was short -> API's last page
     page <- page + 1
   }
   

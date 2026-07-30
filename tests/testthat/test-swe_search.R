@@ -33,3 +33,12 @@ test_that("swe_search() returns an empty tibble (not an error) for no matches", 
   expect_s3_class(result, "tbl_df")
   expect_equal(nrow(result), 0)
 })
+
+test_that("swe_search() excludes archival non-sfst documents", {
+  skip_on_cran()
+  skip_if_offline()
+  
+  result <- swe_search(query = "regeringsform", max_results = 10)
+  expect_true(all(nchar(result$sfs_nr) > 0))
+  expect_equal(nrow(result), 10)
+})

@@ -51,6 +51,22 @@ because the next realistic update window is ~6 months out. **No thin MVP.**
   contains `kod: "upphavd"` (repeal date) and `kod: "upphnr"` (repealing SFS
   number) when a statute has been repealed; both are absent for statutes
   still in force. `$dokument$status` is always empty — not a useful signal.
+- [x] ~~Does `dokumentlista` free-text search~~ **Resolved 2026-07-26**: yes,
+  `sok=` works as free text, but **default sort order is not
+  relevance-based** — a query like "regeringsform" returned unrelated
+  results (e.g. gas-price subsidy regulations) sorted purely by date. Adding
+  `sort=rel&sortorder=desc` fixes this; confirmed via the `score` field
+  (e.g. 1974:152 scored 36451 vs. ~1000-3000 for the next most relevant
+  results). `swe_search()` now applies this sort by default — not optional,
+  since without it the function is close to useless for its main purpose.
+- [ ] **New edge case found 2026-07-26**: one result for query
+  "regeringsform" had an empty `sfs_nr` (`beteckning`) and a truncated
+  `titel` ("för Riksbankens styrelse och förvaltning") — likely an older or
+  non-standard document (possibly a Riksbank charter/ordinance) that
+  doesn't follow the normal SFS numbering convention. Not yet handled
+  defensively; a downstream `swe_get_doc(sfs_nr = "")` call would fail.
+  Low priority for v1 but should be revisited — either filter such rows
+  out of `swe_search()` results, or document the caveat clearly.
 - [ ] Does `dokumentlista` free-text search (`sok=`) reliably find a statute
   by SFS number, or only by title keywords? (`bet=` parameter confirmed
   **not** to work for `doktyp=sfs`.)
@@ -88,7 +104,7 @@ later — mirrors `flx_` in finlex).
 | Function | Status | Purpose |
 |---|---|---|
 | `swe_get_doc(sfs_nr)` | 🟢 done (v1) | Single document, full metadata + consolidated text. 404, generic-HTTP-error and connection-failure handling implemented and passing in `testthat` with `httptest2` mocks (11/11 tests). Repealed-statute detection (`upphavd`, `upphavd_av`, `is_repealed`) implemented via `dokumentuppgift$uppgift` parsing. |
-| `swe_search(...)` | ⬜ not started | Wraps `dokumentlista`: free text, date range, `rm`, department/`organ` filter, pagination. |
+| `swe_search(...)` | 🟢 done (v1) | Wraps `dokumentlista`: free text, date range (`from_date`/`to_date`), department (`org`), session year (`rm`), pagination. Defaults to `sort=rel&sortorder=desc` — confirmed empirically necessary (default order is not relevance-based, making free-text search unusable otherwise). Returns empty tibble (not an error) on no matches. 4/4 tests passing. |
 | `swe_get_text(sfs_nr)` | ⬜ not started | Thin wrapper returning only the text string (mirrors `flx_get_text()`). |
 | `swe_get_metadata(sfs_nr)` | ⬜ not started | Thin wrapper returning only metadata tibble, no full text (cheaper calls for bulk metadata work). |
 | `swe_list_changes(sfs_nr)` | ⬜ needs API research | Amendment history for a statute, if the API exposes it structurally (see open question above). |
@@ -161,15 +177,12 @@ status here as we go rather than in a separate task list.)*
 
 ## 4. Sequencing
 
-1. ~~API reconnaissance~~ ✅ (this document captures the findings)
-2. ~~Finish `swe_get_doc()` incl. repealed-statute + outage handling~~ ✅
-   package skeleton created (`usethis::create_package()`, MIT license,
-   roxygen-md, testthat 3, GH Actions check-standard), `swe_get_doc()` +
-   helpers implemented in `R/swe_get_doc.R`, 11/11 tests passing with
-   httptest2 mocks
-3. **Next up:** design + build `swe_search()` (needed for almost everything
-   else — discovery of SFS numbers by topic/date)
-4. Build remaining thin wrappers (`swe_get_text`, `swe_get_metadata`)
+1. ~~API reconnaissance~~ ✅
+2. ~~`swe_get_doc()` + package skeleton~~ ✅ committed, CI green
+3. ~~`swe_search()`~~ ✅ implemented with relevance-sort fix, tested,
+   committed, `devtools::check()`: 0/0/0
+4. **Next up:** thin wrappers (`swe_get_text`, `swe_get_metadata`); also
+   revisit the empty-`sfs_nr` edge case found in `swe_search()` results
 5. Resolve amendment-history question → decide whether `swe_list_changes()`
    is in scope for v1.0 or deferred
 6. Pre-computed vignette
@@ -178,8 +191,9 @@ status here as we go rather than in a separate task list.)*
 
 ---
 
-*Last updated: 2026-07-24. First CI run green: package skeleton +
-swe_get_doc() fully committed, pushed, and verified on a clean external
-runner. Milestone reached — ready to move to swe_search(). Update this
-file as decisions are made — don't let a separate task list drift out of
-sync with it.*
+*Last updated: 2026-07-26. `swe_search()` complete with critical
+relevance-sort fix discovered empirically; shared error-handling helper
+extracted to R/utils.R. Package check clean (0/0/0), ready to commit.
+Next: thin wrapper functions + empty-sfs_nr edge case. Update this file as
+decisions are made — don't let a separate task list drift out of sync
+with it.*
